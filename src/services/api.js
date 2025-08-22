@@ -1,46 +1,55 @@
 import axios from "axios";
 
-// Environment detection
-const isDevelopment =
-  import.meta.env.MODE === "development" ||
-  window.location.hostname === "localhost"
+// Force production URL for testing
+const API_BASE_URL = "https://notebooklm-clone-backend-1rmg.onrender.com";
 
-// API Base URLs
-const API_BASE_URL = isDevelopment
-  ? "http://localhost:3000"
-  : "https://notebooklm-clone-backend-1rmg.onrender.com";
+console.log("🔗 Frontend Debug - API Base URL:", API_BASE_URL);
+console.log("🌍 Frontend Debug - Current Location:", window.location.href);
+console.log("🏠 Frontend Debug - Hostname:", window.location.hostname);
+console.log("📍 Frontend Debug - Port:", window.location.port);
+console.log("🔒 Frontend Debug - Protocol:", window.location.protocol);
 
-// Create axios instance
+// Create axios instance with detailed logging
 const apiClient = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 30000, // 30 seconds timeout
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Request interceptor
+// Enhanced request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    console.log(
-      `🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`
-    );
+    console.log("🚀 Frontend Request Debug:");
+    console.log(`   Method: ${config.method?.toUpperCase()}`);
+    console.log(`   URL: ${config.url}`);
+    console.log(`   Base URL: ${config.baseURL}`);
+    console.log(`   Full URL: ${config.baseURL}${config.url}`);
+    console.log(`   Headers:`, config.headers);
     return config;
   },
   (error) => {
-    console.error("❌ Request Error:", error);
+    console.error("❌ Frontend Request Error:", error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor
+// Enhanced response interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+    console.log("✅ Frontend Response Debug:");
+    console.log(`   Status: ${response.status}`);
+    console.log(`   URL: ${response.config.url}`);
+    console.log(`   Data:`, response.data);
     return response;
   },
   (error) => {
-    console.error("❌ API Error:", error.response?.data || error.message);
+    console.error("❌ Frontend Response Error:");
+    console.error(`   Status: ${error.response?.status}`);
+    console.error(`   Message: ${error.message}`);
+    console.error(`   Response Data:`, error.response?.data);
+    console.error(`   Full Error:`, error);
 
     // Handle common errors
     if (error.response?.status === 404) {
@@ -57,13 +66,41 @@ apiClient.interceptors.response.use(
   }
 );
 
-// API Service Class
+// API Service Class with enhanced debugging
 class APIService {
-  // File Upload Methods
+  // Test connection to backend
+  async testConnection() {
+    try {
+      console.log("🧪 Testing backend connection...");
+      const response = await axios.get(`${API_BASE_URL}/health`);
+      console.log("✅ Backend connection successful:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Backend connection failed:", error);
+      throw error;
+    }
+  }
+
+  // File Upload with enhanced debugging
   async uploadPDF(file) {
     try {
+      console.log("📤 Upload Debug - Starting upload");
+      console.log("📄 File details:", {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+
+      // Test backend connection first
+      await this.testConnection();
+
       const formData = new FormData();
       formData.append("pdf", file);
+
+      console.log(
+        "📤 Upload Debug - Making request to:",
+        `${API_BASE_URL}/api/upload`
+      );
 
       const response = await apiClient.post("/upload", formData, {
         headers: {
@@ -71,14 +108,21 @@ class APIService {
         },
       });
 
+      console.log("✅ Upload successful:", response.data);
       return response.data;
     } catch (error) {
+      console.error("❌ Upload failed:");
+      console.error("   Error message:", error.message);
+      console.error("   Error response:", error.response?.data);
+      console.error("   Full error:", error);
+
       throw new Error(
         error.response?.data?.error?.message || error.message || "Upload failed"
       );
     }
   }
 
+  // Other methods remain the same...
   async getPDFInfo(fileId) {
     try {
       const response = await apiClient.get(`/pdf/${fileId}`);
@@ -92,33 +136,6 @@ class APIService {
     }
   }
 
-  async deletePDF(fileId) {
-    try {
-      const response = await apiClient.delete(`/pdf/${fileId}`);
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.error?.message ||
-          error.message ||
-          "Failed to delete PDF"
-      );
-    }
-  }
-
-  async getAllPDFs() {
-    try {
-      const response = await apiClient.get("/pdfs");
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.error?.message ||
-          error.message ||
-          "Failed to get PDFs"
-      );
-    }
-  }
-
-  // Chat Methods
   async sendChatMessage(question, fileId, options = {}) {
     try {
       const response = await apiClient.post("/chat", {
@@ -137,34 +154,6 @@ class APIService {
     }
   }
 
-  // AI Service Methods
-  async getAvailableModels() {
-    try {
-      const response = await apiClient.get("/models");
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.error?.message ||
-          error.message ||
-          "Failed to get models"
-      );
-    }
-  }
-
-  async getAIStatus() {
-    try {
-      const response = await apiClient.get("/ai/status");
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.error?.message ||
-          error.message ||
-          "Failed to get AI status"
-      );
-    }
-  }
-
-  // System Methods
   async healthCheck() {
     try {
       const response = await apiClient.get("/health");
@@ -177,24 +166,15 @@ class APIService {
       );
     }
   }
-
-  async getStats() {
-    try {
-      const response = await apiClient.get("/stats");
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.error?.message ||
-          error.message ||
-          "Failed to get stats"
-      );
-    }
-  }
 }
 
-// Create and export singleton instance
+// Test the connection when the module loads
 const apiService = new APIService();
-export default apiService;
 
-// Export axios instance for direct use if needed
+// Auto-test connection
+apiService.testConnection().catch((error) => {
+  console.error("🚨 Initial backend connection test failed:", error.message);
+});
+
+export default apiService;
 export { apiClient };

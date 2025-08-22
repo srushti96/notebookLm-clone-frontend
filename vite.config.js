@@ -5,15 +5,6 @@ import tailwindcss from "@tailwindcss/vite";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: {
-    proxy: {
-      "/api": {
-        target: ["http://localhost:3000", "https://notebooklm-clone-backend-1rmg.onrender.com"],
-        changeOrigin: true,
-        secure: false,
-      },
-    },
-  },
   build: {
     target: "es2020",
     minify: "esbuild",
