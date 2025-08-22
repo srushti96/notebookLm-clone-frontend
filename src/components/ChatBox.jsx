@@ -1,12 +1,14 @@
-// ChatBox.jsx
 import { useState, useRef, useEffect } from "react";
-import { FiSend, FiUser, FiMessageCircle } from "react-icons/fi";
+import { FiSend, FiUser, FiMessageCircle, FiAlertCircle } from "react-icons/fi";
+import apiService from "../services/api";
 
-export default function ChatBox({ fileId }) {
+const ChatBox = ({ fileId }) => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -16,43 +18,71 @@ export default function ChatBox({ fileId }) {
     scrollToBottom();
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || !fileId) return;
+  // Auto-focus textarea when fileId changes
+  useEffect(() => {
+    if (fileId && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [fileId]);
 
-    const userMessage = { role: "user", content: input, timestamp: new Date() };
-    setMessages((prev) => [...prev, userMessage]);
+  const addMessage = (message) => {
+    setMessages((prev) => [
+      ...prev,
+      { ...message, id: Date.now() + Math.random() },
+    ]);
+  };
+
+  const sendMessage = async () => {
+    const trimmedInput = input.trim();
+    if (!trimmedInput || !fileId || isLoading) return;
+
+    const userMessage = {
+      role: "user",
+      content: trimmedInput,
+      timestamp: new Date(),
+    };
+
+    addMessage(userMessage);
     setInput("");
     setIsLoading(true);
+    setError(null);
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: input, fileId }),
-      });
+      console.log("💬 Sending chat message:", trimmedInput);
+      const response = await apiService.sendChatMessage(trimmedInput, fileId);
 
-      const response = await res.json();
+      if (response.success) {
+        const aiMessage = {
+          role: "assistant",
+          content: response.data.answer,
+          citations: response.data.citations,
+          model: response.data.model,
+          usage: response.data.usage,
+          timestamp: new Date(),
+        };
 
-      if (!response.success) {
-        throw new Error(response.error?.message || "Failed to get response");
+        addMessage(aiMessage);
+        console.log("✅ Chat response received");
+      } else {
+        throw new Error(response.message || "Failed to get response");
       }
-
-      const aiMessage = {
-        role: "assistant",
-        content: response.data.answer,
-        citations: response.data.citations,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      console.error("Error sending message:", error);
+    } catch (err) {
+      console.error("❌ Chat error:", err);
       const errorMessage = {
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
+        content:
+          "Sorry, I encountered an error while processing your request. Please try again.",
+        error: true,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
+
+      addMessage(errorMessage);
+      setError(err.message || "Failed to send message");
     } finally {
       setIsLoading(false);
     }
@@ -68,19 +98,43 @@ export default function ChatBox({ fileId }) {
   const handleTextareaChange = (e) => {
     setInput(e.target.value);
     // Auto-resize textarea
-    e.target.style.height = "auto";
-    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+    const textarea = e.target;
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+  };
+
+  const retryLastMessage = () => {
+    if (messages.length >= 2) {
+      const lastUserMessage = messages[messages.length - 2];
+      if (lastUserMessage.role === "user") {
+        setInput(lastUserMessage.content);
+        // Remove the last two messages (user + error)
+        setMessages((prev) => prev.slice(0, -2));
+        setError(null);
+      }
+    }
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+    setError(null);
+    setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
 
   if (!fileId) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
           <FiMessageCircle size={48} className="mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">
             No Document Loaded
           </h3>
-          <p className="text-gray-500">Upload a document to start chatting</p>
+          <p className="text-gray-500">
+            Upload a PDF document to start asking questions about its content
+          </p>
         </div>
       </div>
     );
@@ -88,6 +142,41 @@ export default function ChatBox({ fileId }) {
 
   return (
     <div className="h-full flex flex-col bg-white">
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-800">
+            Chat with Document
+          </h2>
+          {messages.length > 0 && (
+            <button
+              onClick={clearChat}
+              className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+            >
+              Clear Chat
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="flex-shrink-0 px-6 py-3 bg-red-50 border-b border-red-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <FiAlertCircle size={16} className="text-red-500" />
+              <span className="text-sm text-red-700">{error}</span>
+            </div>
+            <button
+              onClick={retryLastMessage}
+              className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 ? (
@@ -96,14 +185,20 @@ export default function ChatBox({ fileId }) {
             <h3 className="text-lg font-medium text-gray-600 mb-2">
               Start a conversation
             </h3>
-            <p className="text-gray-500">
+            <p className="text-gray-500 mb-4">
               Ask questions about your uploaded document
             </p>
+            <div className="text-sm text-gray-400 space-y-1">
+              <p>Try asking:</p>
+              <p className="italic">"What is this document about?"</p>
+              <p className="italic">"Summarize the key points"</p>
+              <p className="italic">"What are the main conclusions?"</p>
+            </div>
           </div>
         ) : (
-          messages.map((message, index) => (
+          messages.map((message) => (
             <div
-              key={index}
+              key={message.id}
               className={`flex ${
                 message.role === "user" ? "justify-end" : "justify-start"
               }`}
@@ -119,38 +214,54 @@ export default function ChatBox({ fileId }) {
                   className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     message.role === "user"
                       ? "bg-blue-500 text-white"
+                      : message.error
+                      ? "bg-red-100 text-red-600"
                       : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {message.role === "user" ? (
                     <FiUser size={16} />
+                  ) : message.error ? (
+                    <FiAlertCircle size={16} />
                   ) : (
                     <FiMessageCircle size={16} />
                   )}
                 </div>
+
                 <div
                   className={`px-4 py-3 rounded-2xl ${
                     message.role === "user"
                       ? "bg-blue-500 text-white"
+                      : message.error
+                      ? "bg-red-50 text-red-800 border border-red-200"
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >
                   <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <p className="whitespace-pre-wrap m-0">{message.content}</p>
                   </div>
+
                   {message.citations && message.citations.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-xs text-gray-500 mb-2">Sources:</p>
+                    <div className="mt-3 pt-3 border-t border-gray-300">
+                      <p className="text-xs text-gray-600 mb-2 font-medium">
+                        Sources:
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {message.citations.map((page, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700"
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
                           >
                             Page {page}
                           </span>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {message.model && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Model: {message.model}
                     </div>
                   )}
                 </div>
@@ -186,26 +297,33 @@ export default function ChatBox({ fileId }) {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 p-4 bg-white">
+      <div className="flex-shrink-0 border-t border-gray-200 p-4 bg-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-end space-x-3">
             <div className="flex-1">
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={handleTextareaChange}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask about your document..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 rows="1"
                 style={{ minHeight: "44px", maxHeight: "120px" }}
+                disabled={isLoading}
               />
             </div>
             <button
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-shrink-0 w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              title="Send message"
             >
-              <FiSend size={18} />
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <FiSend size={18} />
+              )}
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2 text-center">
@@ -215,4 +333,6 @@ export default function ChatBox({ fileId }) {
       </div>
     </div>
   );
-}
+};
+
+export default ChatBox;
