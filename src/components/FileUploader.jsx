@@ -36,7 +36,6 @@ const FileUploader = ({ pdfFile, setPdfFile, pdfInfo, setPdfInfo }) => {
     setError(null);
 
     try {
-      console.log("📤 Starting file upload:", file.name);
       const response = await apiService.uploadPDF(file);
 
       if (response.success) {
@@ -48,12 +47,11 @@ const FileUploader = ({ pdfFile, setPdfFile, pdfInfo, setPdfInfo }) => {
           textLength: response.data.textLength,
           uploadedAt: response.data.uploadedAt,
         });
-        console.log("✅ Upload successful:", response.data);
       } else {
         throw new Error(response.message || "Upload failed");
       }
     } catch (err) {
-      console.error("❌ Upload error:", err);
+      console.error("Upload error:", err);
       setError(err.message || "Upload failed. Please try again.");
       // Clear file on error
       setPdfFile(null);

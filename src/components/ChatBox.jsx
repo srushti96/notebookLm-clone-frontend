@@ -53,7 +53,6 @@ const ChatBox = ({ fileId }) => {
     }
 
     try {
-      console.log("💬 Sending chat message:", trimmedInput);
       const response = await apiService.sendChatMessage(trimmedInput, fileId);
 
       if (response.success) {
@@ -67,7 +66,6 @@ const ChatBox = ({ fileId }) => {
         };
 
         addMessage(aiMessage);
-        console.log("✅ Chat response received");
       } else {
         throw new Error(response.message || "Failed to get response");
       }

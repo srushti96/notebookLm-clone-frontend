@@ -3,7 +3,6 @@ const ChatBox = lazy(() => import("./components/ChatBox"));
 const FileUploader = lazy(() => import("./components/FileUploader"));
 const PDFViewer = lazy(() => import("./components/PDFViewer"));
 import {
-  FiUpload,
   FiMessageSquare,
   FiFileText,
   FiX,
