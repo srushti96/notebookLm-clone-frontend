@@ -7,24 +7,21 @@ const ChatBox = ({ fileId }) => {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Refs
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Auto-scroll and focus effects
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Auto-focus textarea when fileId changes
   useEffect(() => {
-    if (fileId && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    fileId && textareaRef.current?.focus();
   }, [fileId]);
 
+  // Message handling
   const addMessage = (message) => {
     setMessages((prev) => [
       ...prev,
@@ -33,53 +30,39 @@ const ChatBox = ({ fileId }) => {
   };
 
   const sendMessage = async () => {
-    const trimmedInput = input.trim();
-    if (!trimmedInput || !fileId || isLoading) return;
+    if (!input.trim() || !fileId || isLoading) return;
 
     const userMessage = {
       role: "user",
-      content: trimmedInput,
+      content: input.trim(),
       timestamp: new Date(),
     };
-
     addMessage(userMessage);
     setInput("");
     setIsLoading(true);
     setError(null);
 
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-
     try {
-      const response = await apiService.sendChatMessage(trimmedInput, fileId);
+      const response = await apiService.sendChatMessage(input.trim(), fileId);
 
       if (response.success) {
-        const aiMessage = {
+        addMessage({
           role: "assistant",
           content: response.data.answer,
           citations: response.data.citations,
           model: response.data.model,
-          usage: response.data.usage,
           timestamp: new Date(),
-        };
-
-        addMessage(aiMessage);
+        });
       } else {
         throw new Error(response.message || "Failed to get response");
       }
     } catch (err) {
-      console.error("❌ Chat error:", err);
-      const errorMessage = {
+      addMessage({
         role: "assistant",
-        content:
-          "Sorry, I encountered an error while processing your request. Please try again.",
+        content: "Sorry, I encountered an error. Please try again.",
         error: true,
         timestamp: new Date(),
-      };
-
-      addMessage(errorMessage);
+      });
       setError(err.message || "Failed to send message");
     } finally {
       setIsLoading(false);
@@ -95,43 +78,28 @@ const ChatBox = ({ fileId }) => {
 
   const handleTextareaChange = (e) => {
     setInput(e.target.value);
-    // Auto-resize textarea
-    const textarea = e.target;
-    textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
-  };
-
-  const retryLastMessage = () => {
-    if (messages.length >= 2) {
-      const lastUserMessage = messages[messages.length - 2];
-      if (lastUserMessage.role === "user") {
-        setInput(lastUserMessage.content);
-        // Remove the last two messages (user + error)
-        setMessages((prev) => prev.slice(0, -2));
-        setError(null);
-      }
-    }
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
   };
 
   const clearChat = () => {
     setMessages([]);
     setError(null);
     setInput("");
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    textareaRef.current?.focus();
   };
 
+  // No file state
   if (!fileId) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md">
+        <div className="text-center">
           <FiMessageCircle size={48} className="mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">
             No Document Loaded
           </h3>
           <p className="text-gray-500">
-            Upload a PDF document to start asking questions about its content
+            Upload a PDF document to start asking questions
           </p>
         </div>
       </div>
@@ -141,41 +109,31 @@ const ChatBox = ({ fileId }) => {
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Chat with Document
-          </h2>
-          {messages.length > 0 && (
-            <button
-              onClick={clearChat}
-              className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
-            >
-              Clear Chat
-            </button>
-          )}
-        </div>
+      <div className="flex-shrink-0 px-6 py-3 border-b bg-gray-50 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-800">
+          Chat with Document
+        </h2>
+        {messages.length > 0 && (
+          <button
+            onClick={clearChat}
+            className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 rounded"
+          >
+            Clear Chat
+          </button>
+        )}
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div className="flex-shrink-0 px-6 py-3 bg-red-50 border-b border-red-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <FiAlertCircle size={16} className="text-red-500" />
-              <span className="text-sm text-red-700">{error}</span>
-            </div>
-            <button
-              onClick={retryLastMessage}
-              className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-            >
-              Retry
-            </button>
+        <div className="flex-shrink-0 px-6 py-3 bg-red-50 border-b flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <FiAlertCircle size={16} className="text-red-500" />
+            <span className="text-sm text-red-700">{error}</span>
           </div>
         </div>
       )}
 
-      {/* Messages Area */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 ? (
           <div className="text-center py-12">
@@ -183,7 +141,7 @@ const ChatBox = ({ fileId }) => {
             <h3 className="text-lg font-medium text-gray-600 mb-2">
               Start a conversation
             </h3>
-            <p className="text-gray-500 mb-4">
+            <p className="text-gray-500">
               Ask questions about your uploaded document
             </p>
             <div className="text-sm text-gray-400 space-y-1">
@@ -209,7 +167,7 @@ const ChatBox = ({ fileId }) => {
                 }`}
               >
                 <div
-                  className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     message.role === "user"
                       ? "bg-blue-500 text-white"
                       : message.error
@@ -225,7 +183,6 @@ const ChatBox = ({ fileId }) => {
                     <FiMessageCircle size={16} />
                   )}
                 </div>
-
                 <div
                   className={`px-4 py-3 rounded-2xl ${
                     message.role === "user"
@@ -235,11 +192,8 @@ const ChatBox = ({ fileId }) => {
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >
-                  <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap m-0">{message.content}</p>
-                  </div>
-
-                  {message.citations && message.citations.length > 0 && (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {message.citations && (
                     <div className="mt-3 pt-3 border-t border-gray-300">
                       <p className="text-xs text-gray-600 mb-2 font-medium">
                         Sources:
@@ -248,18 +202,12 @@ const ChatBox = ({ fileId }) => {
                         {message.citations.map((page, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
+                            className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
                           >
                             Page {page}
                           </span>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {message.model && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Model: {message.model}
                     </div>
                   )}
                 </div>
@@ -268,66 +216,59 @@ const ChatBox = ({ fileId }) => {
           ))
         )}
 
+        {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="max-w-3xl flex items-start space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
                 <FiMessageCircle size={16} />
               </div>
               <div className="px-4 py-3 rounded-2xl bg-gray-100">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div
-                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0.1s" }}
-                  ></div>
-                  <div
-                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
           </div>
         )}
-
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="flex-shrink-0 border-t border-gray-200 p-4 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-3">
-            <div className="flex-1">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleTextareaChange}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask about your document..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                rows="1"
-                style={{ minHeight: "44px", maxHeight: "120px" }}
-                disabled={isLoading}
-              />
-            </div>
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-              title="Send message"
-            >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <FiSend size={18} />
-              )}
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Press Enter to send, Shift+Enter for new line
-          </p>
+      {/* Input */}
+      <div className="flex-shrink-0 border-t p-4">
+        <div className="flex items-end space-x-3">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleTextareaChange}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask about your document..."
+            className="flex-1 px-4 py-3 border rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows="1"
+            style={{ minHeight: "44px", maxHeight: "120px" }}
+            disabled={isLoading}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim() || isLoading}
+            className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 disabled:opacity-50 transition-colors"
+          >
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <FiSend size={18} />
+            )}
+          </button>
         </div>
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          Press Enter to send, Shift+Enter for new line
+        </p>
       </div>
     </div>
   );

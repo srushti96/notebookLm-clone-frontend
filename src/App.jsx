@@ -1,19 +1,47 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, useCallback, memo } from "react";
 const ChatBox = lazy(() => import("./components/ChatBox"));
 const FileUploader = lazy(() => import("./components/FileUploader"));
 const PDFViewer = lazy(() => import("./components/PDFViewer"));
-import {
-  FiMessageSquare,
-  FiFileText,
-  FiX,
-  FiMenu,
-} from "react-icons/fi";
+import { FiMessageSquare, FiFileText, FiX, FiMenu } from "react-icons/fi";
+
+// Memoized static icon components
+const CloseIcon = memo(() => <FiX size={20} />);
+const MenuIcon = memo(() => <FiMenu size={20} />);
+const FileTextIconLarge = memo(() => (
+  <FiFileText size={48} className="mx-auto text-gray-400 mb-4" />
+));
+
+// Memoized sidebar tab button
+const SidebarButton = memo(({ active, onClick, icon: Icon, label }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+      active ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+    }`}
+  >
+    <Icon size={18} />
+    <span>{label}</span>
+  </button>
+));
 
 function App() {
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfInfo, setPdfInfo] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState("chat"); // "chat" or "document"
+  const [activeTab, setActiveTab] = useState("chat");
+
+  // Memoize callbacks to avoid unnecessary re-renders
+  const handleSetPdfFile = useCallback((file) => {
+    setPdfFile(file);
+  }, []);
+
+  const handleSetPdfInfo = useCallback((info) => {
+    setPdfInfo(info);
+  }, []);
+
+  const handleSetActiveTab = useCallback((tab) => {
+    setActiveTab(tab);
+  }, []);
 
   return (
     <div className="h-screen bg-gray-50 flex">
@@ -29,14 +57,14 @@ function App() {
             <h1 className="text-xl font-semibold text-gray-800">NotebookLM</h1>
           )}
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => setSidebarOpen((prev) => !prev)}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
+            {sidebarOpen ? <CloseIcon /> : <MenuIcon />}
           </button>
         </div>
 
-        {/* Content */}
+        {/* Sidebar Content */}
         <div className="flex-1 p-4">
           {sidebarOpen && (
             <div className="space-y-4">
@@ -53,9 +81,9 @@ function App() {
                 >
                   <FileUploader
                     pdfFile={pdfFile}
-                    setPdfFile={setPdfFile}
+                    setPdfFile={handleSetPdfFile}
                     pdfInfo={pdfInfo}
-                    setPdfInfo={setPdfInfo}
+                    setPdfInfo={handleSetPdfInfo}
                   />
                 </Suspense>
               </div>
@@ -80,28 +108,18 @@ function App() {
         {/* Top Navigation */}
         <div className="bg-white border-b border-gray-200 px-6 py-3">
           <div className="flex items-center space-x-6">
-            <button
-              onClick={() => setActiveTab("chat")}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                activeTab === "chat"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <FiMessageSquare size={18} />
-              <span>Chat</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("document")}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                activeTab === "document"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <FiFileText size={18} />
-              <span>Document</span>
-            </button>
+            <SidebarButton
+              active={activeTab === "chat"}
+              onClick={() => handleSetActiveTab("chat")}
+              icon={FiMessageSquare}
+              label="Chat"
+            />
+            <SidebarButton
+              active={activeTab === "document"}
+              onClick={() => handleSetActiveTab("document")}
+              icon={FiFileText}
+              label="Document"
+            />
           </div>
         </div>
 
@@ -132,10 +150,7 @@ function App() {
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
-                    <FiFileText
-                      size={48}
-                      className="mx-auto text-gray-400 mb-4"
-                    />
+                    <FileTextIconLarge />
                     <h3 className="text-lg font-medium text-gray-600 mb-2">
                       No Document Selected
                     </h3>
